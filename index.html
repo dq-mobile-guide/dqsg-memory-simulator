@@ -1,0 +1,632 @@
+import React, { useState, useEffect } from 'react';
+import { Shield, Sword, Wand2, Heart, Coins, Settings2, Search, Star, Check, Activity, Sparkles, Layers, Calculator, ChevronDown } from 'lucide-react';
+
+// === 顏色對應的 Tailwind 樣式 ===
+const COLOR_STYLES = {
+  '彩色': 'bg-gradient-to-br from-pink-400 via-green-400 to-blue-400 text-white shadow-sm border-white',
+  '紅色': 'bg-red-500 text-white shadow-sm border-red-600',
+  '綠色': 'bg-green-500 text-white shadow-sm border-green-600',
+  '藍色': 'bg-blue-500 text-white shadow-sm border-blue-600',
+  '紫色': 'bg-purple-500 text-white shadow-sm border-purple-600',
+  '黃色': 'bg-yellow-400 text-slate-800 shadow-sm border-yellow-500',
+  // 上級職雙色格：利用 from-50% to-50% 做出硬邊界的對角線切分
+  '黃色/綠色': 'bg-gradient-to-br from-yellow-400 from-50% to-green-500 to-50% text-white shadow-sm border-slate-300',
+  '紫色/綠色': 'bg-gradient-to-br from-purple-500 from-50% to-green-500 to-50% text-white shadow-sm border-slate-300',
+  '紅色/藍色': 'bg-gradient-to-br from-red-500 from-50% to-blue-500 to-50% text-white shadow-sm border-slate-300',
+};
+
+// === 模擬資料庫 (Mock Database) ===
+const MEMORIES = [
+  { id: 1, name: '火炎戰士', color: '紅色', cost: 55, hp: 120, atk: 104, matk: 51, heal: 59, effects: ['物理傷害提升', '屬性傷害提升'] },
+  { id: 2, name: '殺人機器', color: '黃色', cost: 65, hp: 146, atk: 116, matk: 53, heal: 67, effects: ['物理傷害提升'] },
+  { id: 3, name: '龍王', color: '紫色', cost: 65, hp: 116, atk: 62, matk: 97, heal: 91, effects: ['咒文傷害提升'] },
+  { id: 4, name: '萊姆史萊姆', color: '藍色', cost: 20, hp: 45, atk: 17, matk: 52, heal: 51, effects: ['屬性傷害提升'] },
+  { id: 5, name: '迷你惡魔', color: '紫色', cost: 35, hp: 77, atk: 65, matk: 31, heal: 35, effects: [] },
+  { id: 6, name: '木乃伊', color: '黃色', cost: 40, hp: 88, atk: 77, matk: 38, heal: 43, effects: ['物理傷害提升'] },
+  { id: 7, name: '冰塊石巨人', color: '藍色', cost: 45, hp: 83, atk: 48, matk: 52, heal: 60, effects: ['咒文傷害提升'] },
+  { id: 8, name: '惡魔神官', color: '綠色', cost: 55, hp: 136, atk: 90, matk: 62, heal: 68, effects: ['物理傷害提升', '屬性傷害提升'] },
+  { id: 9, name: '姆多', color: '紫色', cost: 60, hp: 127, atk: 71, matk: 94, heal: 84, effects: ['屬性傷害提升', '咒文傷害提升'] },
+  { id: 10, name: '杜蘭', color: '紅色', cost: 60, hp: 122, atk: 105, matk: 50, heal: 58, effects: ['物理傷害提升', '暴擊率提升'] },
+  { id: 11, name: '大魔王迪斯塔穆亞', color: '紅色', cost: 70, hp: 152, atk: 100, matk: 74, heal: 81, effects: ['暴擊率提升'] },
+  { id: 12, name: '史萊姆騎士', color: '藍色', cost: 25, hp: 65, atk: 31, matk: 12, heal: 24, effects: ['屬性傷害提升'] },
+  { id: 13, name: '天空之龍', color: '黃色', cost: 60, hp: 179, atk: 85, matk: 49, heal: 51, effects: ['物理傷害提升'] },
+  { id: 14, name: '月亮奇美拉', color: '綠色', cost: 55, hp: 150, atk: 83, matk: 56, heal: 70, effects: ['物理傷害提升'] },
+  { id: 15, name: '老王迪斯塔穆亞', color: '黃色', cost: 65, hp: 133, atk: 111, matk: 49, heal: 67, effects: ['物理傷害提升', '屬性傷害提升'] },
+  { id: 16, name: '黃金史萊姆', color: '綠色', cost: 75, hp: 160, atk: 50, matk: 120, heal: 150, effects: ['咒文傷害提升', '暴擊率提升'] },
+  { id: 17, name: '戰鬥恐龍', color: '紅色', cost: 45, hp: 110, atk: 85, matk: 20, heal: 10, effects: ['物理傷害提升'] },
+  { id: 18, name: '流浪金屬史萊姆', color: '藍色', cost: 50, hp: 50, atk: 60, matk: 60, heal: 60, effects: ['暴擊率提升', '屬性傷害提升'] },
+];
+
+const JOB_CATEGORIES = [
+  {
+    category: '基本職',
+    jobs: [
+      { name: '戰士', slots: ['彩色', '黃色', '黃色'], recommendedSort: 'atk' },
+      { name: '魔法使', slots: ['彩色', '紫色', '紫色'], recommendedSort: 'matk' },
+      { name: '僧侶', slots: ['彩色', '綠色', '綠色'], recommendedSort: 'heal' },
+      { name: '武術家', slots: ['彩色', '紅色', '紅色'], recommendedSort: 'atk' },
+      { name: '盜賊', slots: ['彩色', '藍色', '藍色'], recommendedSort: 'atk_matk' }
+    ]
+  },
+  {
+    category: '上級職',
+    jobs: [
+      { name: '聖騎士', slots: ['彩色', '黃色/綠色', '黃色/綠色', '黃色/綠色'], recommendedSort: 'hp' },
+      { name: '賢者', slots: ['彩色', '紫色/綠色', '紫色/綠色', '紫色/綠色'], recommendedSort: 'matk' },
+      { name: '遊俠', slots: ['彩色', '紅色/藍色', '紅色/藍色', '紅色/藍色'], recommendedSort: 'atk' }
+    ]
+  }
+];
+
+const SORT_OPTIONS = [
+  { value: 'atk_matk', label: '攻擊 + 魔攻' },
+  { value: 'atk', label: '攻擊力' },
+  { value: 'matk', label: '攻擊魔力' },
+  { value: 'heal', label: '回復魔力' },
+  { value: 'hp', label: '最大 HP' }
+];
+const EFFECTS = ['物理傷害提升', '咒文傷害提升', '屬性傷害提升', '暴擊率提升'];
+
+// === Cost 上限計算演算法 (支援至55等) ===
+const calculateCostByLevel = (level, isAdvanced) => {
+  const lv = Math.max(1, Math.min(55, level));
+  
+  if (!isAdvanced) {
+    // 基本職: Level 1 = 10, 每級 +5
+    return lv * 5 + 5;
+  } else {
+    // 上級職: Level 1 = 150, 每兩級一組交替 +4, +5
+    const diff = lv - 1;
+    const pairs = Math.floor(diff / 2);
+    const remainder = diff % 2;
+    return 150 + (pairs * 9) + (remainder * 4);
+  }
+};
+
+const isJobAdvanced = (jobName) => {
+  const advancedCategory = JOB_CATEGORIES.find(c => c.category === '上級職');
+  return advancedCategory ? advancedCategory.jobs.some(j => j.name === jobName) : false;
+};
+
+// === 核心演算法：排列組合與最佳化擺放 ===
+const getPermutations = (arr) => {
+  if (arr.length <= 1) return [arr];
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const current = arr[i];
+    const remaining = arr.slice(0, i).concat(arr.slice(i + 1));
+    const remainingPerms = getPermutations(remaining);
+    for (let j = 0; j < remainingPerms.length; j++) {
+      result.push([current, ...remainingPerms[j]]);
+    }
+  }
+  return result;
+};
+
+const evaluatePlacement = (memoriesPermutation, classSlots, sortOption) => {
+  let stats = { hp: 0, atk: 0, matk: 0, heal: 0 };
+  let placement = [];
+
+  for (let i = 0; i < classSlots.length; i++) {
+    const slotColor = classSlots[i];
+    const mem = memoriesPermutation[i] || null;
+
+    if (mem) {
+      let isMatched = false;
+      if (slotColor === '彩色') {
+        isMatched = true;
+      } else if (slotColor.includes('/')) {
+        isMatched = slotColor.split('/').includes(mem.color);
+      } else {
+        isMatched = slotColor === mem.color;
+      }
+
+      const multiplier = isMatched ? 1.2 : 1.0;
+      
+      stats.hp += Math.floor(mem.hp * multiplier);
+      stats.atk += Math.floor(mem.atk * multiplier);
+      stats.matk += Math.floor(mem.matk * multiplier);
+      stats.heal += Math.floor(mem.heal * multiplier);
+      
+      placement.push({ memory: mem, isMatched });
+    } else {
+      placement.push(null);
+    }
+  }
+
+  let score = 0;
+  switch(sortOption) {
+    case 'atk_matk': score = stats.atk + stats.matk; break;
+    case 'atk': score = stats.atk; break;
+    case 'matk': score = stats.matk; break;
+    case 'heal': score = stats.heal; break;
+    case 'hp': score = stats.hp; break;
+    default: score = stats.atk;
+  }
+
+  return { placement, stats, score };
+};
+
+const findOptimalPlacement = (memories, classSlots, sortOption) => {
+  let paddedMemories = [...memories];
+  while (paddedMemories.length < classSlots.length) {
+    paddedMemories.push(null);
+  }
+  
+  const perms = getPermutations(paddedMemories);
+  let bestResult = null;
+  let bestScore = -1;
+
+  for (const perm of perms) {
+    const evaluated = evaluatePlacement(perm, classSlots, sortOption);
+    if (evaluated.score > bestScore) {
+      bestScore = evaluated.score;
+      bestResult = evaluated;
+    }
+  }
+  
+  return bestResult; 
+};
+
+const computeCombinations = (mems, limit, sort, effects, classSlots) => {
+  const maxSlots = classSlots.length; // 動態獲取該職業可裝備格數
+  let validCombs = [];
+  
+  const generate = (index, currentComb, currentCost) => {
+    if (currentComb.length > maxSlots) return;
+
+    if (currentComb.length > 0) {
+      let hasAllEffects = true;
+      if (effects.length > 0) {
+        const combinedEffects = new Set();
+        currentComb.forEach(m => m.effects.forEach(e => combinedEffects.add(e)));
+        hasAllEffects = effects.every(e => combinedEffects.has(e));
+      }
+      
+      if (hasAllEffects) {
+        const optimal = findOptimalPlacement(currentComb, classSlots, sort);
+        
+        validCombs.push({
+          placement: optimal.placement,
+          totalCost: currentCost,
+          stats: optimal.stats,
+          score: optimal.score
+        });
+      }
+    }
+    
+    if (index === mems.length) return;
+    
+    // 不加入
+    generate(index + 1, currentComb, currentCost);
+    
+    // 加入
+    const mem = mems[index];
+    if (currentCost + mem.cost <= limit && currentComb.length < maxSlots) {
+      currentComb.push(mem);
+      generate(index + 1, currentComb, currentCost + mem.cost);
+      currentComb.pop();
+    }
+  };
+  
+  generate(0, [], 0);
+  
+  validCombs.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.totalCost - b.totalCost; 
+  });
+  
+  const uniqueCombs = [];
+  const seenStr = new Set();
+  for (let c of validCombs) {
+    const memIds = c.placement.map(p => p?.memory?.id || 0).join(',');
+    if (!seenStr.has(memIds)) {
+      seenStr.add(memIds);
+      uniqueCombs.push(c);
+      if (uniqueCombs.length >= 10) break;
+    }
+  }
+  
+  return uniqueCombs;
+};
+
+export default function App() {
+  const [selectedJob, setSelectedJob] = useState(JOB_CATEGORIES[0].jobs[0]);
+  const [sortBy, setSortBy] = useState('atk');
+  
+  const [selectedLevelOption, setSelectedLevelOption] = useState('55'); 
+  const [manualCostLimit, setManualCostLimit] = useState(255);
+  
+  const [selectedEffects, setSelectedEffects] = useState([]);
+  
+  const [results, setResults] = useState([]);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const isAdvanced = isJobAdvanced(selectedJob.name);
+  const isManual = selectedLevelOption === 'manual';
+  const jobLevel = isManual ? 55 : Number(selectedLevelOption);
+  const autoCalculatedCost = calculateCostByLevel(jobLevel, isAdvanced);
+  const effectiveCostLimit = isManual ? manualCostLimit : autoCalculatedCost;
+
+  const handleJobSelect = (job) => {
+    setSelectedJob(job);
+    setSortBy(job.recommendedSort);
+  };
+
+  const handleToggleEffect = (effect) => {
+    if (selectedEffects.includes(effect)) {
+      setSelectedEffects(selectedEffects.filter(e => e !== effect));
+    } else {
+      setSelectedEffects([...selectedEffects, effect]);
+    }
+  };
+
+  const handleCalculate = () => {
+    setIsCalculating(true);
+    setHasSearched(true);
+    
+    setTimeout(() => {
+      const res = computeCombinations(MEMORIES, effectiveCostLimit, sortBy, selectedEffects, selectedJob.slots);
+      setResults(res);
+      setIsCalculating(false);
+    }, 50);
+  };
+
+  const renderSlotText = (slotColor) => {
+    if (slotColor === '彩色') {
+      return <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest font-black drop-shadow-md">彩色格</div>;
+    }
+    
+    if (slotColor.includes('/')) {
+      const [color1, color2] = slotColor.split('/');
+      return (
+        <div className="flex flex-col items-center justify-center font-black drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.8)] text-white">
+          <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest leading-none pt-1">{color1}</div>
+          <div className="text-[10px] my-1 opacity-90 rotate-90 leading-none">/</div>
+          <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest leading-none pb-1">{color2}</div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest font-black drop-shadow-md">
+        {slotColor}格
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-12">
+      <header className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-4 shadow-lg sticky top-0 z-20 flex items-center justify-center md:justify-start">
+        <h1 className="text-lg md:text-xl font-bold flex items-center gap-2">
+          <Sword className="w-5 h-5 md:w-6 md:h-6" />
+          DQSG 記憶體編成模擬器
+        </h1>
+      </header>
+
+      <main className="max-w-4xl mx-auto mt-4 px-3 md:px-0">
+        
+        {/* === 條件設定面板 === */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+          <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 font-bold text-slate-700 flex items-center gap-2">
+            <Settings2 className="w-5 h-5 text-slate-500" />
+            設定編成的條件
+          </div>
+          
+          <div className="p-5 space-y-6">
+            
+            {/* 職業選擇 */}
+            <div className="space-y-4">
+              {JOB_CATEGORIES.map(category => (
+                <div key={category.category}>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 border-l-4 border-blue-500 pl-2 flex items-center gap-2">
+                    {category.category === '上級職' && <Layers className="w-4 h-4 text-amber-500" />}
+                    {category.category} ({category.jobs[0].slots.length}格記憶體)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {category.jobs.map(job => (
+                      <button
+                        key={job.name}
+                        onClick={() => handleJobSelect(job)}
+                        className={`px-4 py-2 rounded-full text-sm font-bold border transition-all ${
+                          selectedJob.name === job.name 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-[1.02]' 
+                            : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:border-slate-400'
+                        }`}
+                      >
+                        {job.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 當前職業格子預覽 */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center gap-4">
+              <span className="text-sm font-bold text-slate-600 whitespace-nowrap">
+                「{selectedJob.name}」格子配置：
+              </span>
+              <div className="flex gap-2 flex-wrap">
+                {selectedJob.slots.map((slotColor, idx) => (
+                  <div key={idx} className={`w-12 h-12 md:w-16 md:h-16 rounded-xl border-2 flex items-center justify-center text-xs md:text-sm font-bold shadow-inner ${COLOR_STYLES[slotColor]}`}>
+                    {slotColor.includes('/') ? (
+                       <span className="text-center text-[10px] md:text-xs font-black leading-tight drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.8)] text-white">
+                         {slotColor.split('/')[0]}<br/>/<br/>{slotColor.split('/')[1]}
+                       </span>
+                    ) : (
+                       <span className="drop-shadow-md">{slotColor}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-slate-600 max-w-[340px] mt-2 md:mt-0 bg-blue-50/70 p-2.5 rounded-lg border border-blue-100">
+                <Sparkles className="w-3 h-3 inline mr-1 text-amber-500" />
+                裝備同顏色的記憶體，全能力獲得 <b>1.2倍</b> 加成。<br/>
+                <ul className="list-disc pl-4 mt-1 space-y-0.5 text-blue-700 font-medium">
+                  <li><b>彩色格：</b>放入「任何顏色」皆可獲 1.2 倍！</li>
+                  <li><b>雙色格：</b>放入「任一對應顏色」即可獲 1.2 倍！</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* 排序優先順序 */}
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">排序基準 (以該屬性總和最高為優先)</label>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {SORT_OPTIONS.map(opt => (
+                  <label key={opt.value} className={`
+                    flex items-center justify-center py-2 px-3 border rounded-lg cursor-pointer transition-colors text-sm font-medium
+                    ${sortBy === opt.value ? 'bg-indigo-50 border-indigo-400 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}
+                  `}>
+                    <input 
+                      type="radio" 
+                      name="sortBy" 
+                      value={opt.value}
+                      checked={sortBy === opt.value}
+                      onChange={() => setSortBy(opt.value)}
+                      className="sr-only" 
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Cost 上限設定區塊 */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-1">
+                  <Coins className="w-4 h-4 text-amber-500" />
+                  Cost 上限設定
+                </label>
+                
+                <div className="space-y-3">
+                  {/* 等級下拉式選單 */}
+                  <div className="relative">
+                    <select
+                      value={selectedLevelOption}
+                      onChange={(e) => setSelectedLevelOption(e.target.value)}
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-semibold text-lg bg-white appearance-none cursor-pointer pr-10"
+                    >
+                      <option value="manual">自行輸入 Cost 上限</option>
+                      
+                      {Array.from({ length: 55 }, (_, i) => 55 - i).map(lv => {
+                        const calculatedCost = calculateCostByLevel(lv, isAdvanced);
+                        return (
+                          <option key={lv} value={lv}>
+                            LV {lv} : Cost {calculatedCost}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
+                      <ChevronDown className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  {/* 動態顯示：自行輸入框 或 系統計算結果提示 */}
+                  {isManual ? (
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-200">
+                      <span className="text-sm text-slate-600 font-bold whitespace-nowrap">自訂數值：</span>
+                      <input 
+                        type="number"
+                        min="1"
+                        value={manualCostLimit}
+                        onChange={(e) => setManualCostLimit(Number(e.target.value))}
+                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-bold text-lg"
+                        placeholder="輸入上限"
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex justify-between items-center shadow-inner animate-in fade-in zoom-in-95 duration-200">
+                      <span className="text-sm text-blue-700 font-bold flex items-center gap-1.5">
+                        <Calculator className="w-4 h-4" />
+                        當前上限 ({isAdvanced ? '上級職' : '基本職'})
+                      </span>
+                      <span className="text-2xl font-black text-blue-700 leading-none">{autoCalculatedCost}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 特殊效果篩選 */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">必須包含的特殊效果 (選填)</label>
+                <div className="flex flex-wrap gap-2">
+                  {EFFECTS.map(effect => (
+                    <button
+                      key={effect}
+                      onClick={() => handleToggleEffect(effect)}
+                      className={`px-3 py-1.5 rounded-lg text-sm border flex items-center gap-1.5 transition-colors ${
+                        selectedEffects.includes(effect) 
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold shadow-sm' 
+                          : 'bg-white border-slate-300 text-slate-600 font-medium hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${selectedEffects.includes(effect) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
+                        {selectedEffects.includes(effect) && <Check className="w-3 h-3" />}
+                      </div>
+                      {effect}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* 執行按鈕 */}
+            <button 
+              onClick={handleCalculate}
+              disabled={isCalculating}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4 active:scale-[0.98]"
+            >
+              {isCalculating ? (
+                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                 <Search className="w-5 h-5" />
+              )}
+              {isCalculating ? '正在模擬上萬種可能與最佳擺放...' : `開始模擬最佳編成 (Cost上限: ${effectiveCostLimit})`}
+            </button>
+          </div>
+        </div>
+
+        {/* === 運算結果面板 === */}
+        {hasSearched && !isCalculating && results.length === 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center text-slate-500">
+            <Activity className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+            <p className="font-bold text-slate-700">沒有符合條件的編成組合</p>
+            <p className="text-sm mt-1">請嘗試提高等級/Cost上限，或減少必須的特殊效果。</p>
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div className="space-y-5">
+            <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2 ml-1">
+              <Star className="w-5 h-5 text-yellow-500 fill-current" />
+              推薦編成結果 (Top {results.length})
+            </h2>
+            
+            {results.map((res, i) => (
+              <div key={i} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-lg">
+                
+                {/* Result Header */}
+                <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-3 px-4 flex justify-between items-center text-white">
+                  <div className="font-bold flex items-center gap-2">
+                    <span className="bg-blue-500 text-white text-xs px-2.5 py-1 rounded font-black shadow-sm">#{i + 1}</span>
+                    <span className="tracking-wide text-sm md:text-base">推薦組合</span>
+                  </div>
+                  <div className="text-sm font-black text-white bg-slate-900/50 px-3 py-1 rounded-full border border-slate-600 flex items-center gap-1.5 shadow-inner">
+                    評分: {res.score}
+                  </div>
+                </div>
+                
+                {/* Stats Summary */}
+                <div className="grid grid-cols-5 divide-x divide-slate-200 border-b border-slate-200 bg-white text-center shadow-sm relative z-10">
+                  <div className="py-3 flex flex-col items-center justify-center bg-slate-50">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold mb-0.5">總 Cost</span>
+                    <span className={`text-base md:text-lg font-black ${res.totalCost > effectiveCostLimit ? 'text-red-500' : 'text-slate-800'}`}>
+                      {res.totalCost} <span className="text-xs font-bold text-slate-400">/ {effectiveCostLimit}</span>
+                    </span>
+                  </div>
+                  <div className="py-3 flex flex-col items-center justify-center">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
+                      <Heart className="w-3 h-3 text-rose-500 fill-current"/> 加成 HP
+                    </span>
+                    <span className="text-base md:text-lg font-black text-rose-600">{res.stats.hp}</span>
+                  </div>
+                  <div className="py-3 flex flex-col items-center justify-center">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
+                      <Sword className="w-3 h-3 text-amber-500 fill-current"/> 加成 攻擊
+                    </span>
+                    <span className="text-base md:text-lg font-black text-amber-600">{res.stats.atk}</span>
+                  </div>
+                  <div className="py-3 flex flex-col items-center justify-center">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
+                      <Wand2 className="w-3 h-3 text-purple-500 fill-current"/> 加成 魔攻
+                    </span>
+                    <span className="text-base md:text-lg font-black text-purple-600">{res.stats.matk}</span>
+                  </div>
+                  <div className="py-3 flex flex-col items-center justify-center">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
+                      <Shield className="w-3 h-3 text-teal-500 fill-current"/> 加成 回復
+                    </span>
+                    <span className="text-base md:text-lg font-black text-teal-600">{res.stats.heal}</span>
+                  </div>
+                </div>
+
+                {/* Slots List */}
+                <div className="p-4 bg-slate-50/80">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {res.placement.map((slot, idx) => {
+                      const slotColor = selectedJob.slots[idx];
+                      
+                      return (
+                        <div key={idx} className="flex overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm relative group hover:border-blue-300 transition-colors">
+                          
+                          {/* 左側：格子顏色標示 (渲染單雙色) */}
+                          <div className={`w-10 md:w-12 shrink-0 flex flex-col items-center justify-center text-[10px] md:text-xs font-bold border-r border-slate-200/50 ${COLOR_STYLES[slotColor]}`}>
+                             {renderSlotText(slotColor)}
+                          </div>
+                          
+                          {/* 右側：裝備的記憶體資訊 */}
+                          <div className="flex-1 p-3 flex flex-col justify-center relative">
+                            {slot && slot.memory ? (
+                              <>
+                                <div className="flex justify-between items-start mb-1.5">
+                                  <div className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-1.5">
+                                    {slot.memory.name}
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${COLOR_STYLES[slot.memory.color]}`}>
+                                      {slot.memory.color}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* 相符標籤 */}
+                                  {slot.isMatched && (
+                                    <span className={`border text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 ${slotColor === '彩色' ? 'bg-gradient-to-r from-pink-100 to-blue-100 text-blue-700 border-blue-300' : 'bg-yellow-100 text-yellow-700 border-yellow-400'}`}>
+                                      <Sparkles className="w-2.5 h-2.5" /> 1.2x UP
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">Cost {slot.memory.cost}</span>
+                                  <span className={slot.isMatched ? 'text-rose-600 font-bold' : ''}>HP {Math.floor(slot.memory.hp * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched ? 'text-amber-600 font-bold' : ''}>攻 {Math.floor(slot.memory.atk * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched ? 'text-purple-600 font-bold' : ''}>魔 {Math.floor(slot.memory.matk * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched ? 'text-teal-600 font-bold' : ''}>回 {Math.floor(slot.memory.heal * (slot.isMatched ? 1.2 : 1))}</span>
+                                </div>
+
+                                {slot.memory.effects.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {slot.memory.effects.map(e => (
+                                      <span key={e} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200 rounded font-semibold whitespace-nowrap">
+                                        {e}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-slate-400 text-sm font-bold flex items-center justify-center h-full">
+                                (未裝備記憶體)
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+
