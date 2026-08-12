@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Sword, Wand2, Heart, Coins, Settings2, Search, Star, Check, Activity, Sparkles, Layers, Calculator, ChevronDown } from 'lucide-react';
+import { 
+  Shield, Sword, Wand2, Heart, Coins, Settings2, Search, Star, 
+  Check, Activity, Sparkles, Layers, Calculator, ChevronDown, 
+  RefreshCw, AlertCircle, PlusCircle, Target 
+} from 'lucide-react';
+
+// === Google Sheets 來源 ===
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1BTAdASgX8i2-u7D5xAbwHzcfrZzipEmA_dQClTS3wg0/export?format=csv';
 
 // === 顏色對應的 Tailwind 樣式 ===
 const COLOR_STYLES = {
@@ -9,32 +16,15 @@ const COLOR_STYLES = {
   '藍色': 'bg-blue-500 text-white shadow-sm border-blue-600',
   '紫色': 'bg-purple-500 text-white shadow-sm border-purple-600',
   '黃色': 'bg-yellow-400 text-slate-800 shadow-sm border-yellow-500',
-  // 上級職雙色格：利用 from-50% to-50% 做出硬邊界的對角線切分
   '黃色/綠色': 'bg-gradient-to-br from-yellow-400 from-50% to-green-500 to-50% text-white shadow-sm border-slate-300',
   '紫色/綠色': 'bg-gradient-to-br from-purple-500 from-50% to-green-500 to-50% text-white shadow-sm border-slate-300',
   '紅色/藍色': 'bg-gradient-to-br from-red-500 from-50% to-blue-500 to-50% text-white shadow-sm border-slate-300',
 };
 
-// === 模擬資料庫 (Mock Database) ===
-const MEMORIES = [
-  { id: 1, name: '火炎戰士', color: '紅色', cost: 55, hp: 120, atk: 104, matk: 51, heal: 59, effects: ['物理傷害提升', '屬性傷害提升'] },
-  { id: 2, name: '殺人機器', color: '黃色', cost: 65, hp: 146, atk: 116, matk: 53, heal: 67, effects: ['物理傷害提升'] },
-  { id: 3, name: '龍王', color: '紫色', cost: 65, hp: 116, atk: 62, matk: 97, heal: 91, effects: ['咒文傷害提升'] },
-  { id: 4, name: '萊姆史萊姆', color: '藍色', cost: 20, hp: 45, atk: 17, matk: 52, heal: 51, effects: ['屬性傷害提升'] },
-  { id: 5, name: '迷你惡魔', color: '紫色', cost: 35, hp: 77, atk: 65, matk: 31, heal: 35, effects: [] },
-  { id: 6, name: '木乃伊', color: '黃色', cost: 40, hp: 88, atk: 77, matk: 38, heal: 43, effects: ['物理傷害提升'] },
-  { id: 7, name: '冰塊石巨人', color: '藍色', cost: 45, hp: 83, atk: 48, matk: 52, heal: 60, effects: ['咒文傷害提升'] },
-  { id: 8, name: '惡魔神官', color: '綠色', cost: 55, hp: 136, atk: 90, matk: 62, heal: 68, effects: ['物理傷害提升', '屬性傷害提升'] },
-  { id: 9, name: '姆多', color: '紫色', cost: 60, hp: 127, atk: 71, matk: 94, heal: 84, effects: ['屬性傷害提升', '咒文傷害提升'] },
-  { id: 10, name: '杜蘭', color: '紅色', cost: 60, hp: 122, atk: 105, matk: 50, heal: 58, effects: ['物理傷害提升', '暴擊率提升'] },
-  { id: 11, name: '大魔王迪斯塔穆亞', color: '紅色', cost: 70, hp: 152, atk: 100, matk: 74, heal: 81, effects: ['暴擊率提升'] },
-  { id: 12, name: '史萊姆騎士', color: '藍色', cost: 25, hp: 65, atk: 31, matk: 12, heal: 24, effects: ['屬性傷害提升'] },
-  { id: 13, name: '天空之龍', color: '黃色', cost: 60, hp: 179, atk: 85, matk: 49, heal: 51, effects: ['物理傷害提升'] },
-  { id: 14, name: '月亮奇美拉', color: '綠色', cost: 55, hp: 150, atk: 83, matk: 56, heal: 70, effects: ['物理傷害提升'] },
-  { id: 15, name: '老王迪斯塔穆亞', color: '黃色', cost: 65, hp: 133, atk: 111, matk: 49, heal: 67, effects: ['物理傷害提升', '屬性傷害提升'] },
-  { id: 16, name: '黃金史萊姆', color: '綠色', cost: 75, hp: 160, atk: 50, matk: 120, heal: 150, effects: ['咒文傷害提升', '暴擊率提升'] },
-  { id: 17, name: '戰鬥恐龍', color: '紅色', cost: 45, hp: 110, atk: 85, matk: 20, heal: 10, effects: ['物理傷害提升'] },
-  { id: 18, name: '流浪金屬史萊姆', color: '藍色', cost: 50, hp: 50, atk: 60, matk: 60, heal: 60, effects: ['暴擊率提升', '屬性傷害提升'] },
+// === 備用模擬資料 ===
+const FALLBACK_MEMORIES = [
+  { id: 1, name: '火炎戰士', color: '紅色', cost: 55, hp: 120, atk: 104, matk: 51, heal: 59, def: 0, mdef: 0, dex: 0, effects: ['物理傷害提升', '屬性傷害提升'] },
+  { id: 2, name: '殺人機器', color: '黃色', cost: 65, hp: 146, atk: 116, matk: 53, heal: 67, def: 0, mdef: 0, dex: 0, effects: ['物理傷害提升'] },
 ];
 
 const JOB_CATEGORIES = [
@@ -59,28 +49,118 @@ const JOB_CATEGORIES = [
 ];
 
 const SORT_OPTIONS = [
-  { value: 'atk_matk', label: '攻擊 + 魔攻' },
+  { value: 'atk_matk', label: '攻擊+魔攻' },
   { value: 'atk', label: '攻擊力' },
   { value: 'matk', label: '攻擊魔力' },
   { value: 'heal', label: '回復魔力' },
+  { value: 'def', label: '守備力' },
+  { value: 'mdef', label: '魔法守備力' },
+  { value: 'dex', label: '靈巧' },
   { value: 'hp', label: '最大 HP' }
 ];
-const EFFECTS = ['物理傷害提升', '咒文傷害提升', '屬性傷害提升', '暴擊率提升'];
 
-// === Cost 上限計算演算法 (支援至55等) ===
+// === CSV 處理工具 ===
+const parseCSV = (str) => {
+  const arr = [];
+  let quote = false;
+  let row = 0, col = 0;
+  for (let c = 0; c < str.length; c++) {
+    let cc = str[c], nc = str[c+1];
+    arr[row] = arr[row] || [];
+    arr[row][col] = arr[row][col] || '';
+
+    if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
+    if (cc === '"') { quote = !quote; continue; }
+    if (cc === ',' && !quote) { ++col; continue; }
+    if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
+    if (cc === '\n' && !quote) { ++row; col = 0; continue; }
+    if (cc === '\r' && !quote) { ++row; col = 0; continue; }
+    arr[row][col] += cc;
+  }
+  return arr.filter(row => row.some(cell => cell && cell.trim() !== ''));
+};
+
+const parseSafeNumber = (val) => {
+  if (!val) return 0;
+  const parsed = Number(val.replace(/[^0-9.-]+/g, ''));
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+// === 顏色正規化引擎 ===
+// 解決 CSV 中日文、英文、簡繁體混用的問題
+const normalizeColor = (rawColor) => {
+  if (!rawColor) return '彩色';
+  const c = rawColor.toLowerCase();
+  
+  if (c.includes('紅') || c.includes('赤') || c.includes('red')) return '紅色';
+  if (c.includes('綠') || c.includes('緑') || c.includes('green')) return '綠色';
+  if (c.includes('藍') || c.includes('青') || c.includes('blue')) return '藍色';
+  if (c.includes('紫') || c.includes('purple')) return '紫色';
+  if (c.includes('黃') || c.includes('黄') || c.includes('yellow')) return '黃色';
+  
+  // 包含 "虹", "彩", "rainbow" 或是未知字串，皆視為萬用彩色
+  return '彩色';
+};
+
+
+// 將 CSV 轉換並嚴格對應欄位名稱
+const mapCSVToMemories = (csvArray) => {
+  if (csvArray.length < 2) return [];
+  
+  const headers = csvArray[0].map(h => h ? h.replace(/^\uFEFF/, '').trim().toLowerCase() : '');
+  const rows = csvArray.slice(1);
+
+  return rows.map((row, index) => {
+    const getVal = (possibleKeys, defaultVal) => {
+      for (const key of possibleKeys) {
+        const normalizedKey = key.toLowerCase();
+        let idx = headers.findIndex(h => h === normalizedKey);
+        if (idx === -1) {
+          idx = headers.findIndex(h => h.includes(normalizedKey));
+        }
+
+        if (idx !== -1 && row[idx] !== undefined && row[idx] !== null && row[idx].trim() !== '') {
+          return row[idx].trim();
+        }
+      }
+      return defaultVal;
+    };
+
+    const rawEffects = getVal(['特殊效果', 'extra', 'effects', '效果'], '');
+    const effects = rawEffects ? rawEffects.split(/[,、\n]/).map(s => s.trim()).filter(Boolean) : [];
+    
+    const name = getVal(['名稱', 'name'], '');
+    if (!name) return null; 
+
+    // 取得原始顏色字串後，進行正規化處理
+    const rawColor = getVal(['顏色', 'color', '屬性', '属性'], '彩色');
+    const standardizedColor = normalizeColor(rawColor);
+
+    return {
+      id: index + 1,
+      name: name,
+      color: standardizedColor, // 使用標準化的顏色
+      cost: parseSafeNumber(getVal(['cost', '花費'], '0')),
+      hp: parseSafeNumber(getVal(['hp', '血量'], '0')),
+      atk: parseSafeNumber(getVal(['攻擊力', 'atk'], '0')),
+      matk: parseSafeNumber(getVal(['攻擊魔力', 'm_atk', 'matk'], '0')),
+      heal: parseSafeNumber(getVal(['回復魔力', 'heal'], '0')),
+      def: parseSafeNumber(getVal(['守備力', 'def'], '0')),
+      mdef: parseSafeNumber(getVal(['魔法守備力', 'm_def', 'mdef'], '0')),
+      dex: parseSafeNumber(getVal(['靈巧', 'dex'], '0')),
+      effects: effects
+    };
+  }).filter(item => item !== null);
+};
+
+// === Cost 上限計算演算法 ===
 const calculateCostByLevel = (level, isAdvanced) => {
   const lv = Math.max(1, Math.min(55, level));
-  
-  if (!isAdvanced) {
-    // 基本職: Level 1 = 10, 每級 +5
-    return lv * 5 + 5;
-  } else {
-    // 上級職: Level 1 = 150, 每兩級一組交替 +4, +5
-    const diff = lv - 1;
-    const pairs = Math.floor(diff / 2);
-    const remainder = diff % 2;
-    return 150 + (pairs * 9) + (remainder * 4);
-  }
+  if (!isAdvanced) return lv * 5 + 5;
+  const diff = lv - 1;
+  const pairs = Math.floor(diff / 2);
+  const remainder = diff % 2;
+  return 150 + (pairs * 9) + (remainder * 4);
 };
 
 const isJobAdvanced = (jobName) => {
@@ -104,7 +184,7 @@ const getPermutations = (arr) => {
 };
 
 const evaluatePlacement = (memoriesPermutation, classSlots, sortOption) => {
-  let stats = { hp: 0, atk: 0, matk: 0, heal: 0 };
+  let stats = { hp: 0, atk: 0, matk: 0, heal: 0, def: 0, mdef: 0, dex: 0 };
   let placement = [];
 
   for (let i = 0; i < classSlots.length; i++) {
@@ -114,10 +194,12 @@ const evaluatePlacement = (memoriesPermutation, classSlots, sortOption) => {
     if (mem) {
       let isMatched = false;
       if (slotColor === '彩色') {
-        isMatched = true;
+        isMatched = true; // 彩色格一定 match
       } else if (slotColor.includes('/')) {
+        // 雙色格: 黃色/綠色 -> split(['黃色', '綠色'])
         isMatched = slotColor.split('/').includes(mem.color);
       } else {
+        // 單色格
         isMatched = slotColor === mem.color;
       }
 
@@ -127,6 +209,9 @@ const evaluatePlacement = (memoriesPermutation, classSlots, sortOption) => {
       stats.atk += Math.floor(mem.atk * multiplier);
       stats.matk += Math.floor(mem.matk * multiplier);
       stats.heal += Math.floor(mem.heal * multiplier);
+      stats.def += Math.floor(mem.def * multiplier);
+      stats.mdef += Math.floor(mem.mdef * multiplier);
+      stats.dex += Math.floor(mem.dex * multiplier);
       
       placement.push({ memory: mem, isMatched });
     } else {
@@ -140,6 +225,9 @@ const evaluatePlacement = (memoriesPermutation, classSlots, sortOption) => {
     case 'atk': score = stats.atk; break;
     case 'matk': score = stats.matk; break;
     case 'heal': score = stats.heal; break;
+    case 'def': score = stats.def; break;
+    case 'mdef': score = stats.mdef; break;
+    case 'dex': score = stats.dex; break;
     case 'hp': score = stats.hp; break;
     default: score = stats.atk;
   }
@@ -169,7 +257,7 @@ const findOptimalPlacement = (memories, classSlots, sortOption) => {
 };
 
 const computeCombinations = (mems, limit, sort, effects, classSlots) => {
-  const maxSlots = classSlots.length; // 動態獲取該職業可裝備格數
+  const maxSlots = classSlots.length;
   let validCombs = [];
   
   const generate = (index, currentComb, currentCost) => {
@@ -197,10 +285,8 @@ const computeCombinations = (mems, limit, sort, effects, classSlots) => {
     
     if (index === mems.length) return;
     
-    // 不加入
-    generate(index + 1, currentComb, currentCost);
+    generate(index + 1, currentComb, currentCost); // 不加入
     
-    // 加入
     const mem = mems[index];
     if (currentCost + mem.cost <= limit && currentComb.length < maxSlots) {
       currentComb.push(mem);
@@ -238,10 +324,53 @@ export default function App() {
   const [manualCostLimit, setManualCostLimit] = useState(255);
   
   const [selectedEffects, setSelectedEffects] = useState([]);
-  
   const [results, setResults] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // 資料庫狀態
+  const [memoriesDatabase, setMemoriesDatabase] = useState([]);
+  const [availableEffects, setAvailableEffects] = useState([]);
+  const [isFetchingData, setIsFetchingData] = useState(true);
+  const [fetchStatus, setFetchStatus] = useState({ type: 'loading', message: '正在載入最新記憶體資料庫...' });
+
+  useEffect(() => {
+    const fetchMemories = async () => {
+      try {
+        const response = await fetch(SHEET_CSV_URL);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const csvText = await response.text();
+        const csvArray = parseCSV(csvText);
+        const parsedData = mapCSVToMemories(csvArray);
+        
+        if (parsedData.length > 0) {
+          console.log("解析成功筆數: ", parsedData.length);
+          setMemoriesDatabase(parsedData);
+          setFetchStatus({ type: 'success', message: `成功載入 ${parsedData.length} 筆最新資料` });
+          
+          const effectsSet = new Set();
+          parsedData.forEach(m => m.effects.forEach(e => {
+             if (e && e !== '') effectsSet.add(e);
+          }));
+          setAvailableEffects(Array.from(effectsSet).sort());
+        } else {
+          throw new Error('解析後資料為空，請確認欄位名稱是否對應。');
+        }
+      } catch (error) {
+        console.warn("無法取得遠端試算表或解析失敗，改用備用模擬資料:", error);
+        setMemoriesDatabase(FALLBACK_MEMORIES);
+        setFetchStatus({ type: 'error', message: '遠端讀取失敗，已啟用備用資料' });
+        
+        const effectsSet = new Set();
+        FALLBACK_MEMORIES.forEach(m => m.effects.forEach(e => effectsSet.add(e)));
+        setAvailableEffects(Array.from(effectsSet).sort());
+      } finally {
+        setIsFetchingData(false);
+      }
+    };
+    fetchMemories();
+  }, []);
 
   const isAdvanced = isJobAdvanced(selectedJob.name);
   const isManual = selectedLevelOption === 'manual';
@@ -267,7 +396,7 @@ export default function App() {
     setHasSearched(true);
     
     setTimeout(() => {
-      const res = computeCombinations(MEMORIES, effectiveCostLimit, sortBy, selectedEffects, selectedJob.slots);
+      const res = computeCombinations(memoriesDatabase, effectiveCostLimit, sortBy, selectedEffects, selectedJob.slots);
       setResults(res);
       setIsCalculating(false);
     }, 50);
@@ -277,7 +406,6 @@ export default function App() {
     if (slotColor === '彩色') {
       return <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest font-black drop-shadow-md">彩色格</div>;
     }
-    
     if (slotColor.includes('/')) {
       const [color1, color2] = slotColor.split('/');
       return (
@@ -288,26 +416,35 @@ export default function App() {
         </div>
       );
     }
+    return <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest font-black drop-shadow-md">{slotColor}格</div>;
+  };
 
+  if (isFetchingData) {
     return (
-      <div style={{ writingMode: 'vertical-rl' }} className="tracking-widest font-black drop-shadow-md">
-        {slotColor}格
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center text-slate-500 font-bold gap-3">
+         <RefreshCw className="w-10 h-10 animate-spin text-blue-500" />
+         <p>正在同步 Google Sheets 記憶體資料庫...</p>
       </div>
     );
-  };
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-12">
-      <header className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-4 shadow-lg sticky top-0 z-20 flex items-center justify-center md:justify-start">
+      <header className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-4 shadow-lg sticky top-0 z-20 flex flex-col md:flex-row items-center justify-center md:justify-between px-6">
         <h1 className="text-lg md:text-xl font-bold flex items-center gap-2">
           <Sword className="w-5 h-5 md:w-6 md:h-6" />
           DQSG 記憶體編成模擬器
         </h1>
+        <div className={`text-[10px] md:text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 mt-2 md:mt-0 ${
+          fetchStatus.type === 'success' ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-400/30' : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+        }`}>
+          {fetchStatus.type === 'success' ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+          {fetchStatus.message}
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto mt-4 px-3 md:px-0">
         
-        {/* === 條件設定面板 === */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
           <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 font-bold text-slate-700 flex items-center gap-2">
             <Settings2 className="w-5 h-5 text-slate-500" />
@@ -316,7 +453,6 @@ export default function App() {
           
           <div className="p-5 space-y-6">
             
-            {/* 職業選擇 */}
             <div className="space-y-4">
               {JOB_CATEGORIES.map(category => (
                 <div key={category.category}>
@@ -343,7 +479,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* 當前職業格子預覽 */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center gap-4">
               <span className="text-sm font-bold text-slate-600 whitespace-nowrap">
                 「{selectedJob.name}」格子配置：
@@ -371,10 +506,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* 排序優先順序 */}
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">排序基準 (以該屬性總和最高為優先)</label>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {SORT_OPTIONS.map(opt => (
                   <label key={opt.value} className={`
                     flex items-center justify-center py-2 px-3 border rounded-lg cursor-pointer transition-colors text-sm font-medium
@@ -396,7 +530,6 @@ export default function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* Cost 上限設定區塊 */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-1">
                   <Coins className="w-4 h-4 text-amber-500" />
@@ -404,7 +537,6 @@ export default function App() {
                 </label>
                 
                 <div className="space-y-3">
-                  {/* 等級下拉式選單 */}
                   <div className="relative">
                     <select
                       value={selectedLevelOption}
@@ -412,7 +544,6 @@ export default function App() {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-semibold text-lg bg-white appearance-none cursor-pointer pr-10"
                     >
                       <option value="manual">自行輸入 Cost 上限</option>
-                      
                       {Array.from({ length: 55 }, (_, i) => 55 - i).map(lv => {
                         const calculatedCost = calculateCostByLevel(lv, isAdvanced);
                         return (
@@ -427,7 +558,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 動態顯示：自行輸入框 或 系統計算結果提示 */}
                   {isManual ? (
                     <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-200">
                       <span className="text-sm text-slate-600 font-bold whitespace-nowrap">自訂數值：</span>
@@ -452,11 +582,11 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 特殊效果篩選 */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">必須包含的特殊效果 (選填)</label>
-                <div className="flex flex-wrap gap-2">
-                  {EFFECTS.map(effect => (
+                <label className="block text-sm font-bold text-slate-700 mb-2">必須包含的特殊效果 (自動從資料庫抓取)</label>
+                <div className="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                  {availableEffects.length === 0 && <span className="text-sm text-slate-400">尚無特殊效果標籤</span>}
+                  {availableEffects.map(effect => (
                     <button
                       key={effect}
                       onClick={() => handleToggleEffect(effect)}
@@ -466,7 +596,7 @@ export default function App() {
                           : 'bg-white border-slate-300 text-slate-600 font-medium hover:bg-slate-50'
                       }`}
                     >
-                      <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${selectedEffects.includes(effect) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
+                      <div className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center border ${selectedEffects.includes(effect) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
                         {selectedEffects.includes(effect) && <Check className="w-3 h-3" />}
                       </div>
                       {effect}
@@ -476,7 +606,6 @@ export default function App() {
               </div>
             </div>
             
-            {/* 執行按鈕 */}
             <button 
               onClick={handleCalculate}
               disabled={isCalculating}
@@ -511,7 +640,6 @@ export default function App() {
             {results.map((res, i) => (
               <div key={i} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-lg">
                 
-                {/* Result Header */}
                 <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-3 px-4 flex justify-between items-center text-white">
                   <div className="font-bold flex items-center gap-2">
                     <span className="bg-blue-500 text-white text-xs px-2.5 py-1 rounded font-black shadow-sm">#{i + 1}</span>
@@ -522,41 +650,43 @@ export default function App() {
                   </div>
                 </div>
                 
-                {/* Stats Summary */}
-                <div className="grid grid-cols-5 divide-x divide-slate-200 border-b border-slate-200 bg-white text-center shadow-sm relative z-10">
-                  <div className="py-3 flex flex-col items-center justify-center bg-slate-50">
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-[1px] bg-slate-200 border-b border-slate-200 text-center relative z-10 shadow-sm">
+                  <div className="py-2.5 bg-slate-50 flex flex-col items-center justify-center col-span-1">
                     <span className="text-[10px] md:text-xs text-slate-500 font-bold mb-0.5">總 Cost</span>
-                    <span className={`text-base md:text-lg font-black ${res.totalCost > effectiveCostLimit ? 'text-red-500' : 'text-slate-800'}`}>
-                      {res.totalCost} <span className="text-xs font-bold text-slate-400">/ {effectiveCostLimit}</span>
+                    <span className={`text-sm md:text-base font-black ${res.totalCost > effectiveCostLimit ? 'text-red-500' : 'text-slate-800'}`}>
+                      {res.totalCost} <span className="text-[10px] font-bold text-slate-400">/ {effectiveCostLimit}</span>
                     </span>
                   </div>
-                  <div className="py-3 flex flex-col items-center justify-center">
-                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
-                      <Heart className="w-3 h-3 text-rose-500 fill-current"/> 加成 HP
-                    </span>
-                    <span className="text-base md:text-lg font-black text-rose-600">{res.stats.hp}</span>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><Heart className="w-3 h-3 text-rose-500 fill-current"/> HP</span>
+                    <span className="text-sm md:text-base font-black text-rose-600">{res.stats.hp}</span>
                   </div>
-                  <div className="py-3 flex flex-col items-center justify-center">
-                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
-                      <Sword className="w-3 h-3 text-amber-500 fill-current"/> 加成 攻擊
-                    </span>
-                    <span className="text-base md:text-lg font-black text-amber-600">{res.stats.atk}</span>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><Sword className="w-3 h-3 text-amber-500 fill-current"/> 攻擊</span>
+                    <span className="text-sm md:text-base font-black text-amber-600">{res.stats.atk}</span>
                   </div>
-                  <div className="py-3 flex flex-col items-center justify-center">
-                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
-                      <Wand2 className="w-3 h-3 text-purple-500 fill-current"/> 加成 魔攻
-                    </span>
-                    <span className="text-base md:text-lg font-black text-purple-600">{res.stats.matk}</span>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><Wand2 className="w-3 h-3 text-purple-500 fill-current"/> 魔攻</span>
+                    <span className="text-sm md:text-base font-black text-purple-600">{res.stats.matk}</span>
                   </div>
-                  <div className="py-3 flex flex-col items-center justify-center">
-                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 md:gap-1 mb-0.5">
-                      <Shield className="w-3 h-3 text-teal-500 fill-current"/> 加成 回復
-                    </span>
-                    <span className="text-base md:text-lg font-black text-teal-600">{res.stats.heal}</span>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><PlusCircle className="w-3 h-3 text-emerald-500"/> 回復</span>
+                    <span className="text-sm md:text-base font-black text-emerald-600">{res.stats.heal}</span>
+                  </div>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><Shield className="w-3 h-3 text-blue-500 fill-current"/> 守備</span>
+                    <span className="text-sm md:text-base font-black text-blue-600">{res.stats.def}</span>
+                  </div>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><Shield className="w-3 h-3 text-indigo-500"/> 魔防</span>
+                    <span className="text-sm md:text-base font-black text-indigo-600">{res.stats.mdef}</span>
+                  </div>
+                  <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
+                    <span className="text-[10px] md:text-xs text-slate-500 font-bold flex items-center gap-0.5 mb-0.5"><Target className="w-3 h-3 text-orange-500"/> 靈巧</span>
+                    <span className="text-sm md:text-base font-black text-orange-600">{res.stats.dex}</span>
                   </div>
                 </div>
 
-                {/* Slots List */}
                 <div className="p-4 bg-slate-50/80">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {res.placement.map((slot, idx) => {
@@ -564,38 +694,37 @@ export default function App() {
                       
                       return (
                         <div key={idx} className="flex overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm relative group hover:border-blue-300 transition-colors">
-                          
-                          {/* 左側：格子顏色標示 (渲染單雙色) */}
                           <div className={`w-10 md:w-12 shrink-0 flex flex-col items-center justify-center text-[10px] md:text-xs font-bold border-r border-slate-200/50 ${COLOR_STYLES[slotColor]}`}>
                              {renderSlotText(slotColor)}
                           </div>
                           
-                          {/* 右側：裝備的記憶體資訊 */}
                           <div className="flex-1 p-3 flex flex-col justify-center relative">
                             {slot && slot.memory ? (
                               <>
                                 <div className="flex justify-between items-start mb-1.5">
-                                  <div className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-1.5">
+                                  <div className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-1.5 truncate">
                                     {slot.memory.name}
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${COLOR_STYLES[slot.memory.color]}`}>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${COLOR_STYLES[slot.memory.color]}`}>
                                       {slot.memory.color}
                                     </span>
                                   </div>
                                   
-                                  {/* 相符標籤 */}
                                   {slot.isMatched && (
-                                    <span className={`border text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 ${slotColor === '彩色' ? 'bg-gradient-to-r from-pink-100 to-blue-100 text-blue-700 border-blue-300' : 'bg-yellow-100 text-yellow-700 border-yellow-400'}`}>
+                                    <span className={`border text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 shrink-0 ${slotColor === '彩色' ? 'bg-gradient-to-r from-pink-100 to-blue-100 text-blue-700 border-blue-300' : 'bg-yellow-100 text-yellow-700 border-yellow-400'}`}>
                                       <Sparkles className="w-2.5 h-2.5" /> 1.2x UP
                                     </span>
                                   )}
                                 </div>
                                 
-                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
-                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">Cost {slot.memory.cost}</span>
-                                  <span className={slot.isMatched ? 'text-rose-600 font-bold' : ''}>HP {Math.floor(slot.memory.hp * (slot.isMatched ? 1.2 : 1))}</span>
-                                  <span className={slot.isMatched ? 'text-amber-600 font-bold' : ''}>攻 {Math.floor(slot.memory.atk * (slot.isMatched ? 1.2 : 1))}</span>
-                                  <span className={slot.isMatched ? 'text-purple-600 font-bold' : ''}>魔 {Math.floor(slot.memory.matk * (slot.isMatched ? 1.2 : 1))}</span>
-                                  <span className={slot.isMatched ? 'text-teal-600 font-bold' : ''}>回 {Math.floor(slot.memory.heal * (slot.isMatched ? 1.2 : 1))}</span>
+                                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-500 font-medium">
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 border border-slate-200">Cost {slot.memory.cost}</span>
+                                  <span className={slot.isMatched && slot.memory.hp > 0 ? 'text-rose-600 font-bold' : ''}>HP {Math.floor(slot.memory.hp * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched && slot.memory.atk > 0 ? 'text-amber-600 font-bold' : ''}>攻 {Math.floor(slot.memory.atk * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched && slot.memory.matk > 0 ? 'text-purple-600 font-bold' : ''}>魔 {Math.floor(slot.memory.matk * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched && slot.memory.heal > 0 ? 'text-emerald-600 font-bold' : ''}>回 {Math.floor(slot.memory.heal * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched && slot.memory.def > 0 ? 'text-blue-600 font-bold' : ''}>守 {Math.floor(slot.memory.def * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched && slot.memory.mdef > 0 ? 'text-indigo-600 font-bold' : ''}>魔防 {Math.floor(slot.memory.mdef * (slot.isMatched ? 1.2 : 1))}</span>
+                                  <span className={slot.isMatched && slot.memory.dex > 0 ? 'text-orange-600 font-bold' : ''}>巧 {Math.floor(slot.memory.dex * (slot.isMatched ? 1.2 : 1))}</span>
                                 </div>
 
                                 {slot.memory.effects.length > 0 && (
@@ -625,6 +754,13 @@ export default function App() {
           </div>
         )}
       </main>
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}} />
     </div>
   );
 }
