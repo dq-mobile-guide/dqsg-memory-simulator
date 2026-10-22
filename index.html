@@ -118,7 +118,7 @@
                 sortBase: '排序基準 (以該屬性總和最高為優先)',
                 scoreInfoTitle: '綜合評分說明：',
                 scoreInfo1: '計算公式為 攻擊力 + 魔法攻擊力 + [職業主攻數值]。',
-                scoreInfo2: '物理職（戰士/武術家/盜賊/聖騎士/遊俠）的主攻為 攻擊力；',
+                scoreInfo2: '物理職（戰士/武術家/盜賊/聖騎士/遊俠/戰鬥大師）的主攻為 攻擊力；',
                 scoreInfo3: '魔法職（魔法使/僧侶/賢者）的主攻為 魔法攻擊力。',
                 costLimit: 'Cost 上限設定',
                 manualCost: '自行輸入 Cost 上限',
@@ -142,17 +142,14 @@
                 unequipped: '(未裝備記憶體)',
                 exclude: '排除',
                 excludeTitle: '我沒有這張記憶體，排除並重新計算',
-                
                 // 顏色與標籤
                 '彩色': '彩色', '紅色': '紅色', '綠色': '綠色', '藍色': '藍色', '紫色': '紫色', '黃色': '黃色', '格': '格',
                 '基本職': '基本職', '上級職': '上級職',
                 '戰士': '戰士', '魔法使': '魔法使', '僧侶': '僧侶', '武術家': '武術家', '盜賊': '盜賊',
-                '聖騎士': '聖騎士', '賢者': '賢者', '遊俠': '遊俠',
-                
+                '聖騎士': '聖騎士', '賢者': '賢者', '遊俠': '遊俠', '戰鬥大師': '戰鬥大師',
                 // 數值全稱
                 'comprehensive': '綜合評分', 'atk_matk': '攻擊+魔攻', 'atk': '攻擊力', 'matk': '攻擊魔力',
                 'heal': '回復魔力', 'def': '守備力', 'mdef': '魔法守備力', 'dex': '靈巧', 'hp': '最大 HP',
-                
                 // 數值短稱
                 's_atk': '攻', 's_matk': '魔', 's_heal': '回', 's_def': '守', 's_mdef': '魔防', 's_dex': '巧'
             },
@@ -168,40 +165,32 @@
                 slotDesc2: '虹枠：どの色のメモリでも1.2倍！',
                 slotDesc3: '2色枠：どちらかの色のメモリで1.2倍！',
                 sortBase: '並び替え基準（該当ステータスの合計値が高いものを優先）',
-
                 scoreInfoTitle: '総合評価の説明：',
                 scoreInfo1: '計算式：こうげき力 ＋ こうげき魔力 ＋［職業のメインステータス］。',
-                scoreInfo2: '物理職（戦士/武闘家/盗賊/パラディン/レンジャー）のメインステータスは、こうげき力です。',
+                scoreInfo2: '物理職（戦士/武闘家/盗賊/パラディン/レンジャー/バトルマスター）のメインステータスは、こうげき力です。',
                 scoreInfo3: '魔法職（魔法使い/僧侶/賢者）のメインステータスは、こうげき魔力です。',
-
                 costLimit: 'コスト上限設定',
                 manualCost: 'コスト上限を直接入力',
                 lvAuto: 'レベルで自動計算：Lv',
                 customVal: 'カスタム値：',
                 inputLimit: '上限を入力',
                 currentLimit: '現在の上限',
-
                 effectsReq: '必須の特殊効果（データベースから自動取得）',
                 noEffects: '特殊効果タグがありません',
-
                 excludedTitle: '除外したメモリ（タップで復元して再計算）',
                 restore: 'このメモリを復元',
                 reset: 'リセット',
-
                 calcBtn: '最適編成を計算',
                 calculating: '最適編成を計算中...',
                 noResultTitle: '条件に一致する編成がありません',
                 noResultDesc: 'レベルやコスト上限を上げるか、必須の特殊効果を減らしてください。',
-
                 recResult: 'おすすめ編成',
                 recComb: 'おすすめ編成',
                 score: '評価:',
                 totalCost: '総コスト',
                 unequipped: '(未装備)',
-
                 exclude: '除外',
                 excludeTitle: 'このメモリを除外して再計算',
-
                 '彩色': '虹色',
                 '紅色': '赤',
                 '綠色': '緑',
@@ -209,10 +198,8 @@
                 '紫色': '紫',
                 '黃色': '黄',
                 '格': '枠',
-
                 '基本職': '基本職',
                 '上級職': '上級職',
-
                 '戰士': '戦士',
                 '魔法使': '魔法使い',
                 '僧侶': '僧侶',
@@ -221,7 +208,7 @@
                 '聖騎士': 'パラディン',
                 '賢者': '賢者',
                 '遊俠': 'レンジャー',
-
+                '戰鬥大師': 'バトルマスター',
                 'comprehensive': '総合評価',
                 'atk_matk': '攻＋攻魔',
                 'atk': 'こうげき力',
@@ -231,7 +218,6 @@
                 'mdef': '呪文耐性',
                 'dex': 'きようさ',
                 'hp': 'さいだいHP',
-
                 's_atk': '攻',
                 's_matk': '攻魔',
                 's_heal': '回魔',
@@ -254,6 +240,7 @@
             '黃色/綠色': 'bg-gradient-to-br from-yellow-400 from-50% to-green-500 to-50% text-white shadow-sm border-slate-300',
             '紫色/綠色': 'bg-gradient-to-br from-purple-500 from-50% to-green-500 to-50% text-white shadow-sm border-slate-300',
             '紅色/藍色': 'bg-gradient-to-br from-red-500 from-50% to-blue-500 to-50% text-white shadow-sm border-slate-300',
+            '紅色/黃色': 'bg-gradient-to-br from-red-500 from-50% to-yellow-400 to-50% text-white shadow-sm border-slate-300'
         };
 
         const FALLBACK_MEMORIES = [
@@ -277,12 +264,13 @@
                 jobs: [
                 { name: '聖騎士', slots: ['彩色', '黃色/綠色', '黃色/綠色', '黃色/綠色'], recommendedSort: 'comprehensive' },
                 { name: '賢者', slots: ['彩色', '紫色/綠色', '紫色/綠色', '紫色/綠色'], recommendedSort: 'comprehensive' },
-                { name: '遊俠', slots: ['彩色', '紅色/藍色', '紅色/藍色', '紅色/藍色'], recommendedSort: 'comprehensive' }
+                { name: '遊俠', slots: ['彩色', '紅色/藍色', '紅色/藍色', '紅色/藍色'], recommendedSort: 'comprehensive' },
+                { name: '戰鬥大師', slots: ['彩色', '紅色/黃色', '紅色/黃色', '紅色/黃色'], recommendedSort: 'comprehensive' }
                 ]
             }
         ];
 
-        const PHYSICAL_JOBS = ['戰士', '盜賊', '武術家', '聖騎士', '遊俠'];
+        const PHYSICAL_JOBS = ['戰士', '盜賊', '武術家', '聖騎士', '遊俠', '戰鬥大師'];
 
         const SORT_OPTIONS = [
             { value: 'comprehensive' }, { value: 'atk_matk' }, { value: 'atk' }, { value: 'matk' }, 
@@ -439,7 +427,7 @@
                 const remaining = arr.slice(0, i).concat(arr.slice(i + 1));
                 const remainingPerms = getPermutations(remaining);
                 for (let j = 0; j < remainingPerms.length; j++) {
-                result.push([current, ...remainingPerms[j]]);
+                    result.push([current, ...remainingPerms[j]]);
                 }
             }
             return result;
@@ -454,28 +442,28 @@
                 const mem = memoriesPermutation[i] || null;
 
                 if (mem) {
-                let isMatched = false;
-                if (slotColor === '彩色') {
-                    isMatched = true;
-                } else if (slotColor.includes('/')) {
-                    isMatched = slotColor.split('/').includes(mem.color);
-                } else {
-                    isMatched = slotColor === mem.color;
-                }
+                    let isMatched = false;
+                    if (slotColor === '彩色') {
+                        isMatched = true;
+                    } else if (slotColor.includes('/')) {
+                        isMatched = slotColor.split('/').includes(mem.color);
+                    } else {
+                        isMatched = slotColor === mem.color;
+                    }
 
-                const multiplier = isMatched ? 1.2 : 1.0;
-                
-                stats.hp += Math.floor(mem.hp * multiplier);
-                stats.atk += Math.floor(mem.atk * multiplier);
-                stats.matk += Math.floor(mem.matk * multiplier);
-                stats.heal += Math.floor(mem.heal * multiplier);
-                stats.def += Math.floor(mem.def * multiplier);
-                stats.mdef += Math.floor(mem.mdef * multiplier);
-                stats.dex += Math.floor(mem.dex * multiplier);
-                
-                placement.push({ memory: mem, isMatched });
+                    const multiplier = isMatched ? 1.2 : 1.0;
+                    
+                    stats.hp += Math.floor(mem.hp * multiplier);
+                    stats.atk += Math.floor(mem.atk * multiplier);
+                    stats.matk += Math.floor(mem.matk * multiplier);
+                    stats.heal += Math.floor(mem.heal * multiplier);
+                    stats.def += Math.floor(mem.def * multiplier);
+                    stats.mdef += Math.floor(mem.mdef * multiplier);
+                    stats.dex += Math.floor(mem.dex * multiplier);
+                    
+                    placement.push({ memory: mem, isMatched });
                 } else {
-                placement.push(null);
+                    placement.push(null);
                 }
             }
 
@@ -509,8 +497,8 @@
             for (const perm of perms) {
                 const evaluated = evaluatePlacement(perm, classSlots, sortOption, isPhysicalJob);
                 if (evaluated.score > bestScore) {
-                bestScore = evaluated.score;
-                bestResult = evaluated;
+                    bestScore = evaluated.score;
+                    bestResult = evaluated;
                 }
             }
             return bestResult; 
