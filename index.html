@@ -74,7 +74,7 @@
     </div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         // === 內建 Icons ===
         const IconProps = { xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
@@ -109,6 +109,8 @@
                 loading: '正在同步 Google Sheets 記憶體資料庫...',
                 successFetch: (n) => `成功載入 ${n} 筆最新資料`,
                 errorFetch: '遠端讀取失敗，已啟用備用資料',
+                cachedFetch: (n) => `已顯示快取資料 ${n} 筆，正在檢查更新...`,
+                cachedError: (n) => `遠端更新失敗，使用上次快取 (${n} 筆)`,
                 settings: '設定編成的條件',
                 slots: '格記憶體',
                 slotLayout: '格子配置',
@@ -158,6 +160,8 @@
                 loading: 'Googleスプレッドシートから最新データを取得中...',
                 successFetch: (n) => `最新データ ${n} 件の取得に成功しました`,
                 errorFetch: '取得に失敗しました。予備データを使用します。',
+                cachedFetch: (n) => `キャッシュ ${n} 件を表示中（更新を確認しています...）`,
+                cachedError: (n) => `更新に失敗したため、前回のキャッシュ（${n} 件）を使用します`,
                 settings: '編成条件の設定',
                 slots: '枠',
                 slotLayout: 'スロット配置',
@@ -373,6 +377,72 @@
             return advancedCategory ? advancedCategory.jobs.some(j => j.name === jobName) : false;
         };
 
+        // === 資料載入：快取與逾時 ===
+        const CACHE_KEY = 'dqsg-memories-cache-v1';
+        const FETCH_TIMEOUT_MS = 15000;
+
+        // 讀取上次成功載入的記憶體資料（localStorage 可能被停用或損毀，一律容錯）
+        const loadCachedMemories = () => {
+            try {
+                const raw = localStorage.getItem(CACHE_KEY);
+                if (!raw) return null;
+                const data = JSON.parse(raw).data;
+                if (!Array.isArray(data) || data.length === 0) return null;
+                const valid = data.every(m => m && typeof m.id === 'number' && typeof m.jpName === 'string' &&
+                    typeof m.cost === 'number' && Array.isArray(m.effects));
+                return valid ? data : null;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const saveCachedMemories = (data) => {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
+            } catch (e) { /* 無痕模式或空間不足時略過 */ }
+        };
+
+        const fetchMemoriesFromSheet = async () => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            try {
+                const response = await fetch(SHEET_CSV_URL, { signal: controller.signal });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const parsed = mapCSVToMemories(parseCSV(await response.text()));
+                if (parsed.length === 0) throw new Error('Parse error');
+                return parsed;
+            } finally {
+                clearTimeout(timer);
+            }
+        };
+
+        // 頁面載入時只讀一次快取，作為 React state 的初始值（有快取就不必先顯示載入畫面）
+        const INITIAL_CACHED_MEMORIES = loadCachedMemories();
+
+        const collectEffects = (data) => {
+            const effectsSet = new Set();
+            data.forEach(m => m.effects.forEach(e => {
+                if (e) effectsSet.add(e);
+            }));
+            return Array.from(effectsSet).sort();
+        };
+
+        // 初始語言：直接依瀏覽器語言決定，避免先以日文啟動、再切換造成重複載入
+        const detectInitialLang = () => {
+            try {
+                const userLang = (typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage)) || '';
+                return userLang.toLowerCase().startsWith('zh') ? 'zh-TW' : 'ja';
+            } catch (e) {
+                return 'ja';
+            }
+        };
+
+        // 特殊效果標籤（資料庫內為中文）在日文介面的顯示名稱。
+        // 找不到對應時會直接顯示原文。格式：'中文標籤': '日文標籤'
+        // 例如：'物理傷害提升': '物理ダメージ上昇'（請依遊戲內的實際用語填寫）
+        const EFFECT_LABELS_JA = {
+        };
+
         // === 核心演算法 ===
         const getScore = (mem, sortOption, multiplier = 1, isPhysicalJob = true) => {
             let s = 0;
@@ -484,96 +554,132 @@
             return { placement, stats, score };
         };
 
-        const findOptimalPlacement = (memories, classSlots, sortOption, isPhysicalJob) => {
-            let paddedMemories = [...memories];
-            while (paddedMemories.length < classSlots.length) {
-                paddedMemories.push(null);
+        // 排列快取：依格數預先算好「索引排列」。
+        // getPermutations 只看位置、不看內容，所以對索引排列後再套回記憶體，
+        // 得到的順序與原本直接排列「補 null 後的陣列」完全相同（同分時的擺位也一致）。
+        const PERM_CACHE = {};
+        const getIndexPermutations = (n) => {
+            if (!PERM_CACHE[n]) {
+                PERM_CACHE[n] = getPermutations(Array.from({ length: n }, (_, i) => i));
             }
-            
-            const perms = getPermutations(paddedMemories);
-            let bestResult = null;
-            let bestScore = -1;
-
-            for (const perm of perms) {
-                const evaluated = evaluatePlacement(perm, classSlots, sortOption, isPhysicalJob);
-                if (evaluated.score > bestScore) {
-                    bestScore = evaluated.score;
-                    bestResult = evaluated;
-                }
-            }
-            return bestResult; 
+            return PERM_CACHE[n];
         };
+
+        const TOP_RESULT_COUNT = 10;
 
         const computeCombinations = (allMems, limit, sort, effects, classSlots, jobName) => {
             const isPhysicalJob = PHYSICAL_JOBS.includes(jobName);
             const pool = reduceMemoriesPool(allMems, classSlots, sort, effects, limit, isPhysicalJob);
+            const n = pool.length;
             const maxSlots = classSlots.length;
-            let validCombs = [];
-            
-            const generate = (index, currentComb, currentCost) => {
-                if (currentComb.length > maxSlots) return;
+            const perms = getIndexPermutations(maxSlots);
 
-                if (currentComb.length > 0) {
-                    let hasAllEffects = true;
-                    if (effects.length > 0) {
-                        let combined = new Set();
-                        for(let i=0; i<currentComb.length; i++) {
-                            let effs = currentComb[i].effects;
-                            for(let j=0; j<effs.length; j++) combined.add(effs[j]);
-                        }
-                        for(let i=0; i<effects.length; i++) {
-                            if(!combined.has(effects[i])) { hasAllEffects = false; break; }
-                        }
-                    }
-                    
-                    if (hasAllEffects) {
-                        const optimal = findOptimalPlacement(currentComb, classSlots, sort, isPhysicalJob);
-                        validCombs.push({
-                            placement: optimal.placement,
-                            totalCost: currentCost,
-                            stats: optimal.stats,
-                            score: optimal.score
-                        });
-                    }
-                }
-                
-                if (index === pool.length) return;
-                
-                generate(index + 1, currentComb, currentCost); // 不加入
-                
-                const mem = pool[index];
-                if (currentCost + mem.cost <= limit && currentComb.length < maxSlots) {
-                    currentComb.push(mem);
-                    generate(index + 1, currentComb, currentCost + mem.cost); // 加入
-                    currentComb.pop();
-                }
-            };
-            
-            generate(0, [], 0);
-            
-            validCombs.sort((a, b) => {
-                if (b.score !== a.score) return b.score - a.score;
-                return a.totalCost - b.totalCost; 
-            });
-            
-            const uniqueCombs = [];
-            const seenStr = new Set();
-            for (let c of validCombs) {
-                const memIds = c.placement.map(p => p?.memory?.id || 0).join(',');
-                if (!seenStr.has(memIds)) {
-                    seenStr.add(memIds);
-                    uniqueCombs.push(c);
-                    if (uniqueCombs.length >= 10) break;
+            // 預先算好「第 i 張記憶體放進第 s 格」的得分。
+            // 總分是各記憶體得分的加總，之後評估任何組合都只需查表相加。
+            // 直接呼叫 evaluatePlacement 取得單張得分，確保計分規則只有一份。
+            const contrib = new Float64Array(n * maxSlots);
+            for (let i = 0; i < n; i++) {
+                for (let s = 0; s < maxSlots; s++) {
+                    const single = new Array(maxSlots).fill(null);
+                    single[s] = pool[i];
+                    contrib[i * maxSlots + s] = evaluatePlacement(single, classSlots, sort, isPhysicalJob).score;
                 }
             }
-            
-            return uniqueCombs;
+
+            // 必須包含的特殊效果：記錄每張記憶體涵蓋哪些效果，搜尋時用計數追蹤目前涵蓋幾種
+            const memEffectIdx = pool.map(m => {
+                const idx = [];
+                for (let e = 0; e < effects.length; e++) {
+                    if (m.effects.includes(effects[e])) idx.push(e);
+                }
+                return idx;
+            });
+            const coverCount = new Int32Array(effects.length);
+            let covered = 0;
+            const addEffects = (i) => {
+                const idx = memEffectIdx[i];
+                for (let k = 0; k < idx.length; k++) {
+                    if (coverCount[idx[k]]++ === 0) covered++;
+                }
+            };
+            const removeEffects = (i) => {
+                const idx = memEffectIdx[i];
+                for (let k = 0; k < idx.length; k++) {
+                    if (--coverCount[idx[k]] === 0) covered--;
+                }
+            };
+
+            // 只保留前 N 名：分數高者優先、分數相同則 Cost 低者優先、再相同則先被搜尋到者優先
+            const top = [];
+            const comb = new Array(maxSlots);
+
+            const consider = (score, cost, count, perm) => {
+                if (top.length === TOP_RESULT_COUNT) {
+                    const last = top[TOP_RESULT_COUNT - 1];
+                    if (score < last.score || (score === last.score && cost >= last.cost)) return;
+                }
+                let pos = top.length;
+                while (pos > 0) {
+                    const prev = top[pos - 1];
+                    if (prev.score > score || (prev.score === score && prev.cost <= cost)) break;
+                    pos--;
+                }
+                top.splice(pos, 0, { score, cost, members: comb.slice(0, count), perm });
+                if (top.length > TOP_RESULT_COUNT) top.pop();
+            };
+
+            // 目前組合（comb 的前 count 張）：在所有擺位排列中找最高分
+            const evaluateCurrent = (count, cost) => {
+                if (covered < effects.length) return;
+                let bestScore = -1;
+                let bestPerm = null;
+                for (let p = 0; p < perms.length; p++) {
+                    const perm = perms[p];
+                    let s = 0;
+                    for (let slot = 0; slot < maxSlots; slot++) {
+                        const j = perm[slot]; // 這一格放第 j 張；j >= count 代表空格
+                        if (j < count) s += contrib[comb[j] * maxSlots + slot];
+                    }
+                    if (s > bestScore) {
+                        bestScore = s;
+                        bestPerm = perm;
+                    }
+                }
+                consider(bestScore, cost, count, bestPerm);
+            };
+
+            // 列舉所有「不超過格數、不超過 Cost 上限」的記憶體組合，每個組合只評估一次。
+            // 由大到小挑下一張，走訪順序與舊版遞迴「先不加入、再加入」的首次出現順序相同。
+            const search = (start, count, cost) => {
+                for (let j = n - 1; j >= start; j--) {
+                    const newCost = cost + pool[j].cost;
+                    if (newCost > limit) continue;
+                    comb[count] = j;
+                    addEffects(j);
+                    evaluateCurrent(count + 1, newCost);
+                    if (count + 1 < maxSlots) search(j + 1, count + 1, newCost);
+                    removeEffects(j);
+                }
+            };
+            search(0, 0, 0);
+
+            // 只對進榜的組合建立完整擺位與能力值
+            return top.map(entry => {
+                const arrangement = entry.perm.map(j => (j < entry.members.length ? pool[entry.members[j]] : null));
+                const evaluated = evaluatePlacement(arrangement, classSlots, sort, isPhysicalJob);
+                return {
+                    placement: evaluated.placement,
+                    totalCost: entry.cost,
+                    stats: evaluated.stats,
+                    score: evaluated.score
+                };
+            });
         };
 
         // === 主程式 Component ===
         function App() {
             // 語言狀態
-            const [lang, setLang] = useState('ja');
+            const [lang, setLang] = useState(detectInitialLang);
 
             const [selectedJob, setSelectedJob] = useState(JOB_CATEGORIES[0].jobs[0]);
             const [sortBy, setSortBy] = useState(JOB_CATEGORIES[0].jobs[0].recommendedSort);
@@ -585,13 +691,19 @@
             const [excludedMemories, setExcludedMemories] = useState([]); 
             
             const [results, setResults] = useState([]);
+            // 計算當下的職業格子與 Cost 上限，結果卡片依此顯示，避免設定變動後與舊結果對不上
+            const [resultMeta, setResultMeta] = useState(null);
+            const runIdRef = useRef(0);
             const [isCalculating, setIsCalculating] = useState(false);
             const [hasSearched, setHasSearched] = useState(false);
 
-            const [memoriesDatabase, setMemoriesDatabase] = useState([]);
-            const [availableEffects, setAvailableEffects] = useState([]);
-            const [isFetchingData, setIsFetchingData] = useState(true);
-            const [fetchStatus, setFetchStatus] = useState({ type: 'loading', message: '' });
+            const [memoriesDatabase, setMemoriesDatabase] = useState(INITIAL_CACHED_MEMORIES || []);
+            const [availableEffects, setAvailableEffects] = useState(() => INITIAL_CACHED_MEMORIES ? collectEffects(INITIAL_CACHED_MEMORIES) : []);
+            const [isFetchingData, setIsFetchingData] = useState(!INITIAL_CACHED_MEMORIES);
+            // type: loading | success | cached（顯示快取、背景更新中）| cachedError（更新失敗、沿用快取）| error（改用備用資料）
+            const [fetchStatus, setFetchStatus] = useState(
+                INITIAL_CACHED_MEMORIES ? { type: 'cached', count: INITIAL_CACHED_MEMORIES.length } : { type: 'loading', count: 0 }
+            );
 
             // 翻譯函數
             const t = (key, ...args) => {
@@ -608,12 +720,7 @@
                 return val || key;
             };
 
-            // 自動偵測語言 & 動態更新 SEO 標籤
-            useEffect(() => {
-                const userLang = navigator.language || navigator.userLanguage;
-                const detectedLang = userLang.startsWith('zh') ? 'zh-TW' : 'ja';
-                setLang(detectedLang);
-            }, []);
+            // 語言初始值在 useState 以 detectInitialLang 決定，不在 effect 內再切換（避免觸發重複載入）
 
             // 監聽語言改變以更新網頁 Meta 資訊
             useEffect(() => {
@@ -630,50 +737,54 @@
                 }
             }, [lang]);
 
+            // 載入記憶體資料：只在頁面開啟時執行一次。
+            // 有快取就已先用快取顯示（見上方 state 初始值），這裡再於背景向 Google Sheets 取最新資料。
             useEffect(() => {
-                const fetchMemories = async () => {
-                try {
-                    const response = await fetch(SHEET_CSV_URL);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    
-                    const csvText = await response.text();
-                    const csvArray = parseCSV(csvText);
-                    const parsedData = mapCSVToMemories(csvArray);
-                    
-                    if (parsedData.length > 0) {
-                        setMemoriesDatabase(parsedData);
-                        setFetchStatus({ type: 'success', message: t('successFetch', parsedData.length) });
-                        
-                        const effectsSet = new Set();
-                        parsedData.forEach(m => m.effects.forEach(e => {
-                            if (e && e !== '') effectsSet.add(e);
-                        }));
-                        setAvailableEffects(Array.from(effectsSet).sort());
-                    } else {
-                        throw new Error('Parse error');
-                    }
-                } catch (error) {
-                    console.warn("API Error:", error);
-                    setMemoriesDatabase(FALLBACK_MEMORIES);
-                    setFetchStatus({ type: 'error', message: t('errorFetch') });
-                    
-                    const effectsSet = new Set();
-                    FALLBACK_MEMORIES.forEach(m => m.effects.forEach(e => effectsSet.add(e)));
-                    setAvailableEffects(Array.from(effectsSet).sort());
-                } finally {
-                    setIsFetchingData(false);
-                }
+                let cancelled = false;
+                const cachedJson = INITIAL_CACHED_MEMORIES ? JSON.stringify(INITIAL_CACHED_MEMORIES) : null;
+
+                const applyData = (data) => {
+                    setMemoriesDatabase(data);
+                    setAvailableEffects(collectEffects(data));
                 };
-                
-                if (!isFetchingData && fetchStatus.type === 'success') {
-                     setFetchStatus({ type: 'success', message: t('successFetch', memoriesDatabase.length) });
-                } else if (!isFetchingData && fetchStatus.type === 'error') {
-                     setFetchStatus({ type: 'error', message: t('errorFetch') });
-                } else if (isFetchingData) {
-                    fetchMemories();
-                }
-            // eslint-disable-next-line
-            }, [lang]);
+
+                fetchMemoriesFromSheet()
+                    .then(fresh => {
+                        if (cancelled) return;
+                        saveCachedMemories(fresh);
+                        // 內容沒變就不重設資料，避免清掉使用者目前的結果與排除清單
+                        if (JSON.stringify(fresh) !== cachedJson) {
+                            applyData(fresh);
+                            setExcludedMemories([]);
+                        }
+                        setFetchStatus({ type: 'success', count: fresh.length });
+                    })
+                    .catch(error => {
+                        console.warn('API Error:', error);
+                        if (cancelled) return;
+                        if (INITIAL_CACHED_MEMORIES) {
+                            setFetchStatus({ type: 'cachedError', count: INITIAL_CACHED_MEMORIES.length });
+                        } else {
+                            applyData(FALLBACK_MEMORIES);
+                            setFetchStatus({ type: 'error', count: 0 });
+                        }
+                    })
+                    .finally(() => {
+                        if (!cancelled) setIsFetchingData(false);
+                    });
+
+                return () => { cancelled = true; };
+            }, []);
+
+            // 條件改變（職業、排序、Cost、必要效果、資料庫）時，捨棄舊結果與進行中的計算，
+            // 讓畫面上的結果永遠對應目前設定
+            useEffect(() => {
+                runIdRef.current += 1;
+                setIsCalculating(false);
+                setResults([]);
+                setResultMeta(null);
+                setHasSearched(false);
+            }, [selectedJob, sortBy, selectedLevelOption, manualCostLimit, selectedEffects, memoriesDatabase]);
 
             const isAdvanced = isJobAdvanced(selectedJob.name);
             const isManual = selectedLevelOption === 'manual';
@@ -695,14 +806,28 @@
             };
 
             const runSimulation = (currentExcluded = excludedMemories) => {
+                // 每次計算都有編號；條件在計算途中改變時，舊的計算結果會被丟棄
+                const runId = ++runIdRef.current;
+                const snapshot = { jobName: selectedJob.name, slots: selectedJob.slots, costLimit: effectiveCostLimit };
                 setIsCalculating(true);
                 setHasSearched(true);
                 
                 setTimeout(() => {
-                    const activeDatabase = memoriesDatabase.filter(m => !currentExcluded.includes(m.id));
-                    const res = computeCombinations(activeDatabase, effectiveCostLimit, sortBy, selectedEffects, selectedJob.slots, selectedJob.name);
-                    setResults(res);
-                    setIsCalculating(false);
+                    if (runId !== runIdRef.current) return;
+                    try {
+                        const activeDatabase = memoriesDatabase.filter(m => !currentExcluded.includes(m.id));
+                        const res = computeCombinations(activeDatabase, snapshot.costLimit, sortBy, selectedEffects, snapshot.slots, snapshot.jobName);
+                        if (runId !== runIdRef.current) return;
+                        setResults(res);
+                        setResultMeta(snapshot);
+                    } catch (error) {
+                        console.error('Simulation error:', error);
+                        if (runId !== runIdRef.current) return;
+                        setResults([]);
+                        setResultMeta(null);
+                    } finally {
+                        if (runId === runIdRef.current) setIsCalculating(false);
+                    }
                 }, 50);
             };
 
@@ -728,6 +853,7 @@
                 setSelectedEffects([]);
                 setExcludedMemories([]);
                 setResults([]);
+                setResultMeta(null);
                 setHasSearched(false);
             };
 
@@ -755,6 +881,18 @@
                 return mem.jpName;
             };
 
+            // 資料載入狀態的顯示文字：每次渲染時依目前語言組出，切換語言時會自動更新
+            const fetchOk = fetchStatus.type === 'success' || fetchStatus.type === 'cached';
+            const fetchMessage = {
+                success: () => t('successFetch', fetchStatus.count),
+                cached: () => t('cachedFetch', fetchStatus.count),
+                cachedError: () => t('cachedError', fetchStatus.count),
+                error: () => t('errorFetch')
+            }[fetchStatus.type]?.() || '';
+
+            // 特殊效果標籤：日文介面優先顯示對照表中的日文，沒有就顯示原文
+            const effectLabel = (effect) => (lang === 'ja' && EFFECT_LABELS_JA[effect]) || effect;
+
             if (isFetchingData) {
                 return (
                 <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center text-slate-500 font-bold gap-3">
@@ -775,10 +913,10 @@
                     <div className="flex items-center gap-4 mt-3 md:mt-0">
                         {/* 狀態指示燈 */}
                         <div className={`text-[10px] md:text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
-                            fetchStatus.type === 'success' ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-400/30' : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+                            fetchOk ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-400/30' : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
                         }`}>
-                            {fetchStatus.type === 'success' ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                            {fetchStatus.message}
+                            {fetchOk ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                            {fetchMessage}
                         </div>
                         
                         {/* 語系切換 */}
@@ -968,7 +1106,7 @@
                                 <div className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center border ${selectedEffects.includes(effect) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
                                     {selectedEffects.includes(effect) && <Check className="w-3 h-3" />}
                                 </div>
-                                {effect}
+                                {effectLabel(effect)}
                                 </button>
                             ))}
                             </div>
@@ -1034,11 +1172,12 @@
                     </div>
                     )}
 
-                    {results.length > 0 && (
+                    {resultMeta && results.length > 0 && (
                     <div className="space-y-5">
-                        <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2 ml-1">
+                        <h2 className="text-lg font-extrabold text-slate-800 flex flex-wrap items-center gap-2 ml-1">
                         <Star className="w-5 h-5 text-yellow-500 fill-current" />
                         {t('recResult')} (Top {results.length})
+                        <span className="text-xs font-bold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full">{t(resultMeta.jobName)} · Cost {resultMeta.costLimit}</span>
                         </h2>
                         
                         {results.map((res, i) => (
@@ -1057,8 +1196,8 @@
                             <div className="grid grid-cols-4 md:grid-cols-8 gap-[1px] bg-slate-200 border-b border-slate-200 text-center relative z-10 shadow-sm">
                             <div className="py-2.5 bg-slate-50 flex flex-col items-center justify-center col-span-1">
                                 <span className="text-[10px] md:text-xs text-slate-500 font-bold mb-0.5">{t('totalCost')}</span>
-                                <span className={`text-sm md:text-base font-black ${res.totalCost > effectiveCostLimit ? 'text-red-500' : 'text-slate-800'}`}>
-                                {res.totalCost} <span className="text-[10px] font-bold text-slate-400">/ {effectiveCostLimit}</span>
+                                <span className={`text-sm md:text-base font-black ${res.totalCost > resultMeta.costLimit ? 'text-red-500' : 'text-slate-800'}`}>
+                                {res.totalCost} <span className="text-[10px] font-bold text-slate-400">/ {resultMeta.costLimit}</span>
                                 </span>
                             </div>
                             <div className="py-2.5 bg-white flex flex-col items-center justify-center col-span-1">
@@ -1094,7 +1233,7 @@
                             <div className="p-4 bg-slate-50/80">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {res.placement.map((slot, idx) => {
-                                const slotColor = selectedJob.slots[idx];
+                                const slotColor = resultMeta.slots[idx];
                                 
                                 return (
                                     <div key={idx} className="flex overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm relative group hover:border-blue-300 transition-colors">
@@ -1146,7 +1285,7 @@
                                             <div className="flex flex-wrap gap-1 mt-2">
                                                 {slot.memory.effects.map(e => (
                                                 <span key={e} className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200 rounded font-semibold whitespace-nowrap">
-                                                    {e}
+                                                    {effectLabel(e)}
                                                 </span>
                                                 ))}
                                             </div>
