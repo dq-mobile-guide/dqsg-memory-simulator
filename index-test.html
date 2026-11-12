@@ -444,49 +444,69 @@
         };
 
         // === 核心演算法 ===
-        const getScore = (mem, sortOption, multiplier = 1, isPhysicalJob = true) => {
-            let s = 0;
-            switch(sortOption) {
-                case 'comprehensive': s = mem.atk + mem.matk + (isPhysicalJob ? mem.atk : mem.matk); break;
-                case 'atk_matk': s = (mem.atk + mem.matk); break;
-                case 'atk': s = mem.atk; break;
-                case 'matk': s = mem.matk; break;
-                case 'heal': s = mem.heal; break;
-                case 'def': s = mem.def; break;
-                case 'mdef': s = mem.mdef; break;
-                case 'dex': s = mem.dex; break;
-                case 'hp': s = mem.hp; break;
-                default: s = mem.atk;
+        // 結果只列出前 N 名
+        const TOP_RESULT_COUNT = 10;
+
+        // 單張記憶體放進各格時的得分。總分是各記憶體得分的加總，彼此獨立。
+        // 直接呼叫 evaluatePlacement 取得，確保計分規則（無條件捨去、顏色加成）只有一份。
+        const getSlotScores = (mem, classSlots, sortOption, isPhysicalJob) => {
+            const scores = new Array(classSlots.length);
+            for (let s = 0; s < classSlots.length; s++) {
+                const single = new Array(classSlots.length).fill(null);
+                single[s] = mem;
+                scores[s] = evaluatePlacement(single, classSlots, sortOption, isPhysicalJob).score;
             }
-            return Math.floor(s * multiplier);
+            return scores;
         };
 
+        // 候選池：以「支配關係」剔除一定用不到的記憶體，不會損失最優解。
+        //
+        // 記憶體 B 支配 A：Cost 不高於 A、放進每一格的得分都不低於 A、且涵蓋 A 所有被選的特殊效果。
+        // 此時任何用到 A 的編成，把 A 換成 B 都不會變差（只要 B 不在該編成內）。
+        // 一張記憶體若被 (格數 + 前N名數 - 1) 張以上的記憶體支配，則：
+        //   1. 任何用到它的編成，至少有 N 種不同的 B 可以換，所以前 N 名的分數與 Cost 都不會因此改變；
+        //   2. 這些 B 本身若也被剔除，它們的支配者同樣足夠，可以一路換到留在池內的記憶體。
+        // 完全相同的記憶體（得分、Cost、效果都一樣）以資料順序打破平手，避免互相支配而全部被剔除。
         const reduceMemoriesPool = (allMemories, classSlots, sortOption, selectedEffects, costLimit, isPhysicalJob) => {
-            const validMemories = allMemories.filter(m => m.cost <= costLimit);
-            const poolSet = new Map();
-            const addMem = (m) => { if (!poolSet.has(m.id)) poolSet.set(m.id, m); };
+            const valid = allMemories.filter(m => m.cost <= costLimit);
+            const n = valid.length;
+            const slotCount = classSlots.length;
+            const need = slotCount + TOP_RESULT_COUNT - 1;
+            // 數量本來就不多，或所選效果超過位元遮罩可表示的數量時，不剪枝
+            if (n <= need || selectedEffects.length > 30) return valid;
 
-            if (selectedEffects.length > 0) {
-                const effectMems = validMemories.filter(m => selectedEffects.some(eff => m.effects.includes(eff)));
-                effectMems.sort((a, b) => getScore(b, sortOption, 1.2, isPhysicalJob) - getScore(a, sortOption, 1.2, isPhysicalJob));
-                effectMems.slice(0, 20).forEach(addMem);
+            const scores = valid.map(m => getSlotScores(m, classSlots, sortOption, isPhysicalJob));
+            const masks = valid.map(m => {
+                let mask = 0;
+                for (let i = 0; i < selectedEffects.length; i++) {
+                    if (m.effects.includes(selectedEffects[i])) mask |= (1 << i);
+                }
+                return mask;
+            });
+
+            const kept = [];
+            for (let a = 0; a < n; a++) {
+                const memA = valid[a];
+                let dominators = 0;
+                for (let b = 0; b < n && dominators < need; b++) {
+                    if (b === a) continue;
+                    const memB = valid[b];
+                    if (memB.cost > memA.cost) continue;
+                    if ((masks[b] & masks[a]) !== masks[a]) continue;
+
+                    let notWorse = true;
+                    let identical = memB.cost === memA.cost && masks[b] === masks[a];
+                    for (let s = 0; s < slotCount; s++) {
+                        if (scores[b][s] < scores[a][s]) { notWorse = false; break; }
+                        if (scores[b][s] !== scores[a][s]) identical = false;
+                    }
+                    if (!notWorse) continue;
+                    if (identical && b > a) continue; // 完全相同：只讓資料順序在前的支配後面的
+                    dominators++;
+                }
+                if (dominators < need) kept.push(memA);
             }
-
-            const neededColors = new Set();
-            classSlots.forEach(slot => {
-                if (slot !== '彩色') slot.split('/').forEach(c => neededColors.add(c));
-            });
-
-            neededColors.forEach(color => {
-                const colorMems = validMemories.filter(m => m.color === color);
-                colorMems.sort((a, b) => getScore(b, sortOption, 1.2, isPhysicalJob) - getScore(a, sortOption, 1.2, isPhysicalJob));
-                colorMems.slice(0, 12).forEach(addMem);
-            });
-
-            const overallMems = [...validMemories].sort((a, b) => getScore(b, sortOption, 1.2, isPhysicalJob) - getScore(a, sortOption, 1.2, isPhysicalJob));
-            overallMems.slice(0, 15).forEach(addMem);
-
-            return Array.from(poolSet.values());
+            return kept;
         };
 
         const getPermutations = (arr) => {
@@ -565,26 +585,30 @@
             return PERM_CACHE[n];
         };
 
-        const TOP_RESULT_COUNT = 10;
-
         const computeCombinations = (allMems, limit, sort, effects, classSlots, jobName) => {
             const isPhysicalJob = PHYSICAL_JOBS.includes(jobName);
-            const pool = reduceMemoriesPool(allMems, classSlots, sort, effects, limit, isPhysicalJob);
-            const n = pool.length;
             const maxSlots = classSlots.length;
             const perms = getIndexPermutations(maxSlots);
 
             // 預先算好「第 i 張記憶體放進第 s 格」的得分。
             // 總分是各記憶體得分的加總，之後評估任何組合都只需查表相加。
-            // 直接呼叫 evaluatePlacement 取得單張得分，確保計分規則只有一份。
+            // 候選池依「單張最高得分」由高到低排序：搜尋會先試最強的組合、很快得到一個高門檻，
+            // 之後大部分不可能進前 N 名的組合可以整串跳過（分支定界）。
+            const scored = reduceMemoriesPool(allMems, classSlots, sort, effects, limit, isPhysicalJob).map((mem, order) => {
+                const slotScores = getSlotScores(mem, classSlots, sort, isPhysicalJob);
+                return { mem, slotScores, best: Math.max(...slotScores), order };
+            });
+            scored.sort((a, b) => (b.best - a.best) || (a.order - b.order));
+
+            const pool = scored.map(x => x.mem);
+            const n = pool.length;
+            const costs = pool.map(m => m.cost);
             const contrib = new Float64Array(n * maxSlots);
-            for (let i = 0; i < n; i++) {
-                for (let s = 0; s < maxSlots; s++) {
-                    const single = new Array(maxSlots).fill(null);
-                    single[s] = pool[i];
-                    contrib[i * maxSlots + s] = evaluatePlacement(single, classSlots, sort, isPhysicalJob).score;
-                }
-            }
+            const prefix = new Float64Array(n + 1); // prefix[i] = 前 i 張「單張最高得分」的總和
+            scored.forEach((x, i) => {
+                for (let s = 0; s < maxSlots; s++) contrib[i * maxSlots + s] = x.slotScores[s];
+                prefix[i + 1] = prefix[i] + x.best;
+            });
 
             // 必須包含的特殊效果：記錄每張記憶體涵蓋哪些效果，搜尋時用計數追蹤目前涵蓋幾種
             const memEffectIdx = pool.map(m => {
@@ -594,6 +618,17 @@
                 }
                 return idx;
             });
+            const lastIdx = new Int32Array(effects.length).fill(-1); // 每個效果最後出現在池中的位置
+            let maxEffectsPerMemory = 0;
+            memEffectIdx.forEach((idx, i) => {
+                idx.forEach(e => { lastIdx[e] = i; });
+                if (idx.length > maxEffectsPerMemory) maxEffectsPerMemory = idx.length;
+            });
+            // 有任何一個必要效果在池內完全沒有，就不可能有合法編成
+            for (let e = 0; e < effects.length; e++) {
+                if (lastIdx[e] < 0) return [];
+            }
+
             const coverCount = new Int32Array(effects.length);
             let covered = 0;
             const addEffects = (i) => {
@@ -607,6 +642,17 @@
                 for (let k = 0; k < idx.length; k++) {
                     if (--coverCount[idx[k]] === 0) covered--;
                 }
+            };
+            // 從 nextStart 之後、還有 slotsLeft 格可選時，是否還有機會補齊尚未涵蓋的效果
+            const canStillCover = (nextStart, slotsLeft) => {
+                const missing = effects.length - covered;
+                if (missing === 0) return true;
+                if (slotsLeft <= 0 || nextStart >= n) return false;
+                if (missing > slotsLeft * maxEffectsPerMemory) return false;
+                for (let e = 0; e < effects.length; e++) {
+                    if (coverCount[e] === 0 && lastIdx[e] < nextStart) return false;
+                }
+                return true;
             };
 
             // 只保留前 N 名：分數高者優先、分數相同則 Cost 低者優先、再相同則先被搜尋到者優先
@@ -648,20 +694,32 @@
                 consider(bestScore, cost, count, bestPerm);
             };
 
-            // 列舉所有「不超過格數、不超過 Cost 上限」的記憶體組合，每個組合只評估一次。
-            // 由大到小挑下一張，走訪順序與舊版遞迴「先不加入、再加入」的首次出現順序相同。
-            const search = (start, count, cost) => {
-                for (let j = n - 1; j >= start; j--) {
-                    const newCost = cost + pool[j].cost;
+            // 列舉「不超過格數、不超過 Cost 上限」的記憶體組合，每個組合最多評估一次。
+            // 組合內的記憶體依池內順序（單張最強者在前）由小到大挑選。
+            // 上界 = 已選記憶體的最高得分總和 + 剩餘格數能再拿到的最高得分。
+            // 池已排序，所以越往後挑，上界只會越低；一旦上界輸給目前的第 N 名，後面全部不必再看。
+            const search = (start, count, cost, chosenBest) => {
+                const slotsLeft = maxSlots - count;
+                for (let j = start; j < n; j++) {
+                    const newCost = cost + costs[j];
+                    if (top.length === TOP_RESULT_COUNT) {
+                        const last = top[TOP_RESULT_COUNT - 1];
+                        const bound = chosenBest + prefix[j + Math.min(slotsLeft, n - j)] - prefix[j];
+                        if (bound < last.score) break;
+                        // 分數頂多追平，而 Cost 已不比第 N 名低，不可能擠進榜
+                        if (bound === last.score && newCost >= last.cost) continue;
+                    }
                     if (newCost > limit) continue;
                     comb[count] = j;
                     addEffects(j);
                     evaluateCurrent(count + 1, newCost);
-                    if (count + 1 < maxSlots) search(j + 1, count + 1, newCost);
+                    if (count + 1 < maxSlots && canStillCover(j + 1, maxSlots - count - 1)) {
+                        search(j + 1, count + 1, newCost, chosenBest + (prefix[j + 1] - prefix[j]));
+                    }
                     removeEffects(j);
                 }
             };
-            search(0, 0, 0);
+            search(0, 0, 0, 0);
 
             // 只對進榜的組合建立完整擺位與能力值
             return top.map(entry => {
