@@ -3,6 +3,7 @@ name: Auto Unzip
 on:
   push:
     paths:
+      - "*.zip"
       - "**/*.zip"
 
 permissions:
@@ -17,8 +18,11 @@ jobs:
 
       - name: Extract zip files and commit
         run: |
-          shopt -s nullglob
-          for zip_file in **/*.zip; do
+          shopt -s globstar nullglob
+          for zip_file in *.zip **/*.zip; do
+            # 確保檔案存在（避免重複處理）
+            [[ -f "$zip_file" ]] || continue
+            
             target_dir="${zip_file%.zip}"
             mkdir -p "$target_dir"
             unzip -o "$zip_file" -d "$target_dir"
@@ -27,7 +31,7 @@ jobs:
 
           if [[ -n $(git status --porcelain) ]]; then
             git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.email "github-actions[bot]@://github.com"
             git add -A
             git commit -m "Auto extract zip files"
             git push
