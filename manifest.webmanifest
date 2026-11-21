@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "DQSG 記憶體編成模擬器",
+  "short_name": "DQSG 編成",
+  "description": "ドラクエスマグロ（DQSG）の記憶體編成模擬器：依職業與 Cost 上限，自動計算最佳的記憶體編成。",
+  "lang": "zh-TW",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    { "src": "app-icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "app-icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "app-icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
